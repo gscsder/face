@@ -5,62 +5,82 @@
 # @Software: PyCharm
 import numpy as np
 import gradio as gr
-import cv2
-from detect import FaceRecognition
+import os
+from bin.detect import FaceRecognition
+from httpx._config import Timeout
+import httpx
 
 # 修正numpy版本兼容问题
 np.int = int
 old_lst = np.linalg.lstsq
 np.linalg.lstsq = lambda a, b, rcond=None: old_lst(a, b, rcond)
+# 解决httpx超时问题
+httpx._config.DEFAULT_TIMEOUT_CONFIG = Timeout(timeout=30.0)
+
+os.environ['GRADIO_TEMP_DIR'] = './tmp'
 
 if __name__ == '__main__':
-    img = cv2.imdecode(np.fromfile('cj.jpg', dtype=np.uint8), -1)
-    face_recognitio = FaceRecognition()
-    # 人脸注册
-    result = face_recognitio.register(img, user_name='cj')
+    face_recognition = FaceRecognition()
+    css = """
+    .custom_img_row {
+    max-height: 70vh !important;
+    overflow-y: scroll !important;
+}
+    """
 
 
-    def draw_img(img, th):
-        img_ = face_recognitio.draw_img(img)
-        results = face_recognitio.recognition(img, th)
-        return img_, results[0]
+    def detect_img(img, th):
+        results = face_recognition.recognition(img, th / 100)
+        if not results:
+            return (img, []), "未检测到人脸"
 
+        unknown_num = 0
+        for i in results:
+            if i.name == "未知":
+                unknown_num = unknown_num + 1
+                i.name += str(unknown_num)
+        img_ = face_recognition.draw_img(results)
+        # 选出识别到的人名，位置均以0替代
+        return ((img_, [((0, 0, 0, 0), i.name) for i in results]),
+                "，".join([f"{i.name}（{i.similarity:.2%}）" for i in results]))
 
-    # for result in results:
-    #     print("识别结果：{}".format(result))
 
     def add_name(img, name):
-        res = face_recognitio.register(img, name)
-        if res == "success":
-            return f"录入成功：{name}"
-        return res
+        if not name:
+            return "必须输入人名"
+        return face_recognition.register(img, name)
 
 
-    with gr.Blocks() as demo:
+    def compare_img(img1, img2):
+        return face_recognition.check_compare(img1, img2)
+
+
+    with gr.Blocks(css=css, delete_cache=(120, 1800)) as app:
         # 设置tab选项卡
         with gr.Tab("人脸检测"):
-            # Blocks特有组件，设置所有子组件按垂直排列
-            # 垂直排列是默认情况，不加也没关系
             with gr.Row():
-                with gr.Column():
-                    img_input = gr.Image(label="输入图")
-                    sl = gr.Slider(minimum=0.1, maximum=10, step=0.1, value=1, label="阈值")
-                with gr.Column():
-                    img_output = gr.Image(label="输出图")
-                    t_output = gr.Textbox(label="人名")
+                slider = gr.Slider(minimum=60, maximum=95, step=1, value=70, label="相似度阈值（%）", show_label=True)
+                t_result = gr.Textbox(label="检测结果")
+            with gr.Row(elem_classes="custom_img_row") as row:
+                img_input = gr.Image(label="输入图像")
+                img_output = gr.AnnotatedImage()
+
             img_button = gr.Button("检测")
         with gr.Tab("录入人脸"):
             with gr.Row():
+                img_input2 = gr.Image(label="输入图像")
                 with gr.Column():
-                    img_input2 = gr.Image(label="输入图")
                     t_input2 = gr.Textbox(label="人名")
-                with gr.Column():
-                    # img_output2 = gr.Image(label="输出图")
-                    t_output2 = gr.Textbox()
+                    t_output2 = gr.Textbox(label="状态")
             img_button2 = gr.Button("录入")
-        # 设置折叠内容
-        img_button.click(draw_img, inputs=[img_input, sl], outputs=[img_output, t_output])
+        with gr.Tab("人脸对比"):
+            with gr.Row():
+                img_input3 = gr.Image(label="输入图像1")
+                img_input4 = gr.Image(label="输入图像2")
+            t_output3 = gr.Textbox(label="状态/相似度")
+            img_button3 = gr.Button("对比")
+        img_button.click(detect_img, inputs=[img_input, slider], outputs=[img_output, t_result])
         img_button2.click(add_name, inputs=[img_input2, t_input2], outputs=t_output2)
-        # txt.submit(fn=answer, inputs=[txt, state], outputs=[chatbot, state])
+        img_button3.click(compare_img, inputs=[img_input3, img_input4], outputs=t_output3)
 
-    demo.launch(share=True)
+    app.launch(server_name="0.0.0.0", server_port=5000)
