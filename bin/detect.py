@@ -57,7 +57,7 @@ class FaceRecognition:
             # 字体大小40分之一取整，偏移至左上方
             font_size = int(dimg.shape[0] / 40 + 1)
             dimg = self.put_chn_text(dimg, f"{persons[i].name}（{persons[i].similarity:.2%}）",
-                                     (box[0], box[1] - int(font_size*1.5)), font_size)
+                                     (box[0], box[1] - int(font_size * 1.5)), font_size)
 
         return dimg
 
@@ -111,7 +111,7 @@ class FaceRecognition:
         dist = np.sum(np.square(diff))
         return calc_similarity(dist)
 
-    def register(self, image, user_name, threshold=None, gender=None) -> str:
+    def register(self, image, user_name, id_=None, gender=None, source=None, threshold=None) -> str | Face:
         threshold = self.threshold if threshold is None else threshold
         faces = self.recognition(image, threshold=threshold)
         if not faces:
@@ -123,7 +123,14 @@ class FaceRecognition:
             return '该用户已存在'
         else:
             faces[0].name = user_name
+            if id_:
+                faces[0].id = id_
             if gender:
                 faces[0].gender = gender
-            self.db.insert_one(Person(**faces[0].dict()))
-            return "录入成功"
+            if source:
+                faces[0].source = source
+
+            res = self.db.insert_one(Person(**faces[0].dict()))
+            if res.succ_count:
+                return faces[0]
+            return "录入失败"

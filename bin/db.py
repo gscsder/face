@@ -67,12 +67,14 @@ class Database:
         return collection
 
     def insert_one(self, person: Person):
-        self.collection.insert([person.dict()])
+        r = self.collection.insert([person.dict()])
         self.collection.flush()
+        return r
 
     def insert_many(self, persons: list[Person]):
-        self.collection.upsert([p.dict() for p in persons])
+        r = self.collection.insert([p.dict() for p in persons])
         self.collection.flush()
+        return r
 
     def search_by_embedding(self, embedding: list[float], limit=1) -> list[Face]:
         """

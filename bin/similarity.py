@@ -7,9 +7,10 @@
 import math
 
 from sympy import symbols, Eq, solve
+from bin.config import similarity_param as xx
 
 
-def sigmoid_para(x1=1, s1=0.95, x2=1.6, s2=0.6) -> tuple[float, float]:
+def sigmoid_para(x1=xx[0], s1=0.95, x2=xx[1], s2=0.6) -> tuple[float, float]:
     """
     求解Sigmoid函数未知参数，将x1-x2映射为0.95-0.6的相似度，此区间内分布更密集，可自由更改
     """

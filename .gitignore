@@ -1,3 +1,7 @@
 /tmp/
 /db_path
 /.venv
+/venv
+/face_img
+/test.py
+/*.jpg
