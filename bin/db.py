@@ -31,6 +31,8 @@ class Person(BaseModel):
     name: str = "未知"
     gender: Literal[0, 1]
     source: str = "未知"
+    time: int = Field(description="创建时间，13位时间戳",
+                      default_factory=lambda: int(time.time() * 1000))
     embedding: list[float]
 
 
@@ -38,17 +40,14 @@ class Face(Person):
     similarity: float = .0
 
     def __init__(self, distance: float, fields: dict):
-        data = {"similarity": calc_similarity(distance), **fields}
-        # data = {"similarity": calc_similarity(distance), "embedding": embedding, **metadata}
         super().__init__(similarity=calc_similarity(distance), **fields)
-        # super().__init__(**data)
 
 
 class Database:
     def __init__(self, collection_name="face", dim=512):
         self.dim = dim
         self.collection_name = collection_name
-        connections.connect(host="127.0.0.1", port=19530, keep_alive=True)
+        connections.connect(host="127.0.0.1", port=19530)
         self.collection = self.get_collection()
 
     def get_collection(self):
@@ -57,6 +56,7 @@ class Database:
             FieldSchema(name="name", dtype=DataType.VARCHAR, max_length=20),
             FieldSchema(name="gender", dtype=DataType.INT32),
             FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=20),
+            FieldSchema(name="time", dtype=DataType.INT64),
             FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=self.dim)
         ]
         schema = CollectionSchema(fields, enable_dynamic_field=False)
@@ -87,12 +87,12 @@ class Database:
         if self.collection.is_empty:
             return []
         res = self.collection.search([embedding], anns_field="embedding", param={},
-                                     limit=limit, output_fields=["id", "name", "source", "gender", "embedding"])
+                                     limit=limit, output_fields=["id", "name", "source", "gender", "time", "embedding"])
         return [Face(r.distance, r.fields) for r in res[0]]
 
     def query_by_id(self, id_: int):
         return self.collection.query(f"id == {id_}",
-                                     output_fields=["id", "name", "source", "gender", "embedding"], limit=1)
+                                     output_fields=["id", "name", "source", "gender", "time", "embedding"], limit=1)
 
     @property
     def count(self) -> int:
